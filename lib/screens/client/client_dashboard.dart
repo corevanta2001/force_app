@@ -14,9 +14,9 @@ class ClientDashboard extends StatelessWidget {
         margin: EdgeInsets.all(4),
         decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.2))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(icon, size: 16, color: color), SizedBox(width: 4), Text(title, style: TextStyle(fontSize: 11, color: Colors.black54))]),
+          Row(children: [Icon(icon, size: 16, color: color), SizedBox(width: 4), Expanded(child: Text(title, style: TextStyle(fontSize: 10, color: Colors.black54), overflow: TextOverflow.ellipsis))]),
           SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
         ]),
       ),
     );
@@ -25,20 +25,27 @@ class ClientDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    final ordersStream = FirebaseFirestore.instance.collection('orders').where('userId', isEqualTo: uid).snapshots();
     return Scaffold(
       appBar: AppBar(title: Text("My Dashboard"), backgroundColor: Color(0xFF0F172A), foregroundColor: Colors.white, actions: [
         IconButton(icon: Icon(Icons.add), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClientNewOrder())))
       ]),
       body: StreamBuilder<QuerySnapshot>(
-        stream: ordersStream,
+        stream: FirebaseFirestore.instance.collection('orders').where('userId', isEqualTo: uid).snapshots(),
         builder: (c, s) {
           if (!s.hasData) return Center(child: CircularProgressIndicator());
           final docs = s.data!.docs;
+
           int pending = docs.where((d) => (d.data() as Map)['status'] == 'pending').length;
+          int accepted = docs.where((d) => ((d.data() as Map)['status']??'').toString().contains('deposit') || (d.data() as Map)['status']=='accepted_awaiting_deposit').length;
+          int inTransit = docs.where((d) => (d.data() as Map)['status'] == 'in_transit').length;
           int delivered = docs.where((d) => (d.data() as Map)['status'] == 'delivered').length;
+          int declined = docs.where((d) => (d.data() as Map)['status'] == 'declined' || (d.data() as Map)['status'] == 'canceled').length;
+
           double totalSpent = 0;
-          for (var d in docs) { totalSpent += ((d.data() as Map)['deliveryFee'] ?? 0).toDouble(); }
+          for (var doc in docs) {
+            var map = doc.data() as Map<String, dynamic>;
+            totalSpent += (map['totalAmount']?? map['deliveryFee']??0).toDouble();
+          }
 
           if (docs.isEmpty) {
             return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -51,13 +58,26 @@ class ClientDashboard extends StatelessWidget {
             ]));
           }
 
+          // Sort locally by createdAt desc
+          docs.sort((a,b){
+            var aT = (a.data() as Map)['createdAt'];
+            var bT = (b.data() as Map)['createdAt'];
+            if(aT==null || bT==null) return 0;
+            return (bT as Timestamp).compareTo(aT as Timestamp);
+          });
+
           return SingleChildScrollView(
             padding: EdgeInsets.all(8),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                kpiCard("Total", "${docs.length}", Icons.list_alt, Color(0xFF0F172A)),
                 kpiCard("Pending", "$pending", Icons.pending, Colors.orange),
-                kpiCard("Delivered", "$delivered", Icons.check_circle, Colors.green),
+                kpiCard("Accepted", "$accepted", Icons.check_circle_outline, Colors.purple),
+                kpiCard("In Transit", "$inTransit", Icons.local_shipping, Colors.blue),
+              ]),
+              Row(children: [
+                kpiCard("Delivered", "$delivered", Icons.done_all, Colors.green),
+                kpiCard("Declined", "$declined", Icons.cancel, Colors.red),
+                kpiCard("Total", "${docs.length}", Icons.list_alt, Color(0xFF0F172A)),
               ]),
               Container(
                 width: double.infinity,
@@ -73,23 +93,24 @@ class ClientDashboard extends StatelessWidget {
                 ]),
               ),
               SizedBox(height: 12),
-              Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text("Recent Orders", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+              Padding(padding: EdgeInsets.symmetric(horizontal: 4), child: Text("Recent Orders - All Statuses", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
               ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
-                itemCount: docs.length > 5 ? 5 : docs.length,
+                itemCount: docs.length,
                 itemBuilder: (c, i) {
                   final doc = docs[i];
                   var d = doc.data() as Map<String, dynamic>;
-                  Color stColor = d['status'] == 'delivered' ? Colors.green : Colors.orange;
+                  String st = d['status']??'pending';
+                  Color stColor = st=='delivered'? Colors.green : st=='declined' || st=='canceled'? Colors.red : st=='in_transit'? Colors.blue : st.contains('deposit')? Colors.purple : Colors.orange;
                   return Card(
                     child: ListTile(
                       leading: Icon(Icons.local_shipping, color: Color(0xFF0F172A)),
-                      title: Text(d['orderNumber'] ?? 'Order', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                      subtitle: Text("${d['dropoffAddress'] ?? ''}", maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text("${d['orderNumber'] ?? 'Order'} - ${d['storeName']??''}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      subtitle: Text("${(d['items'] as List?)?.length??0} items | ${d['dropoffAddress'] ?? ''}", maxLines: 1, overflow: TextOverflow.ellipsis),
                       trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text("\$${d['deliveryFee'] ?? 0}", style: TextStyle(fontWeight: FontWeight.bold)),
-                        Container(padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text(d['status'] ?? 'pending', style: TextStyle(fontSize: 9, color: stColor))),
+                        Text("\$${d['totalAmount']?? d['deliveryFee']??0}", style: TextStyle(fontWeight: FontWeight.bold)),
+                        Container(padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text(st.replaceAll('_',' '), style: TextStyle(fontSize: 8, color: stColor, fontWeight: FontWeight.bold))),
                       ]),
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ClientTracking(orderId: doc.id))),
                     ),
