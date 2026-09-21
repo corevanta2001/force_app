@@ -1,0 +1,16 @@
+{
+  "name": "FORCEapp Flutter",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y curl git unzip xz-utils && if [ ! -d /opt/flutter ]; then cd /tmp && wget -q https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.0-stable.tar.xz && tar xf flutter_linux_3.22.0-stable.tar.xz && sudo mv flutter /opt/flutter; fi && echo 'export PATH=$PATH:/opt/flutter/bin' >> ~/.bashrc && export PATH=$PATH:/opt/flutter/bin && flutter --version",
+  "customizations": {
+    "vscode": {
+      "extensions": ["Dart-Code.flutter", "Dart-Code.dart-code"]
+    }
+  },
+  "remoteEnv": {
+    "PATH": "/opt/flutter/bin:${containerEnv:PATH}"
+  }
+}

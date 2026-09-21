@@ -1,0 +1,82 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'admin_orders.dart';
+import 'admin_vans.dart';
+import 'admin_income.dart';
+import 'admin_drivers.dart';
+import 'admin_clients.dart';
+
+class AdminDashboard extends StatelessWidget {
+  const AdminDashboard({super.key});
+  Widget kpi(String title, String value, Color color, VoidCallback? onTap){
+    return Expanded(child: InkWell(onTap: onTap, child: Container(padding: EdgeInsets.all(14), margin: EdgeInsets.all(4), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withOpacity(0.3))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontSize: 12, color: Colors.black54)), SizedBox(height: 6), Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color))]))));
+  }
+  @override
+  Widget build(BuildContext context){
+    final db = FirebaseFirestore.instance;
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    return Scaffold(
+      appBar: AppBar(title: Text("Admin Dashboard"), backgroundColor: Color(0xFF0F172A), foregroundColor: Colors.white),
+      drawer: Drawer(child: ListView(children: [
+        DrawerHeader(decoration: BoxDecoration(color: Color(0xFF0F172A)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [Icon(Icons.admin_panel_settings, color: Colors.white, size: 40), SizedBox(height: 8), Text("Force Admin", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))])),
+        ListTile(leading: Icon(Icons.dashboard), title: Text("Dashboard"), onTap: ()=> Navigator.pop(context)),
+        ListTile(leading: Icon(Icons.receipt_long), title: Text("All Orders - Accept/Decline"), onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders()))),
+        ListTile(leading: Icon(Icons.local_shipping), title: Text("Vans - Set Available/Delete"), onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminVans()))),
+        ListTile(leading: Icon(Icons.person), title: Text("Drivers - Set Available/Delete"), onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminDrivers()))),
+        ListTile(leading: Icon(Icons.attach_money), title: Text("Income - Full + Expenses"), onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminIncome()))),
+        ListTile(leading: Icon(Icons.people), title: Text("Clients - T&C Accepted"), onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminClients()))),
+      ])),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(8),
+        child: Column(children: [
+          StreamBuilder<QuerySnapshot>(
+            stream: db.collection('orders').snapshots(),
+            builder: (c,s){
+              int pending = 0, accepted=0, inTransit=0, delivered=0, declined=0;
+              if(s.hasData){
+                for(var d in s.data!.docs){
+                  var st = (d.data() as Map)['status']??'';
+                  if(st=='pending') pending++;
+                  if(st.contains('deposit')) accepted++;
+                  if(st=='in_transit') inTransit++;
+                  if(st=='delivered') delivered++;
+                  if(st=='declined') declined++;
+                }
+              }
+              return Column(children: [
+                Row(children: [kpi("Pending", "$pending", Colors.orange, ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders()))), kpi("Accepted", "$accepted", Colors.purple, ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders()))), kpi("In Transit", "$inTransit", Colors.blue, ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders())))]),
+                Row(children: [kpi("Delivered", "$delivered", Colors.green, ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminIncome()))), kpi("Declined", "$declined", Colors.red, ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders()))), kpi("Today Net", "View", Color(0xFF0F172A), ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminIncome())))]),
+              ]);
+            },
+          ),
+          SizedBox(height: 12),
+          StreamBuilder<DocumentSnapshot>(
+            stream: db.collection('daily_income').doc(today).snapshots(),
+            builder: (c,s){
+              final data = s.data?.data() as Map<String, dynamic>?;
+              return Row(children: [kpi("Income", "\$${data?['totalIncome']??0}", Colors.green, null), kpi("Expenses", "\$${data?['totalExpenses']??0}", Colors.red, null), kpi("Net", "\$${data?['netProfit']??0}", Color(0xFF0F172A), null)]);
+            },
+          ),
+          SizedBox(height: 12),
+          Align(alignment: Alignment.centerLeft, child: Padding(padding: EdgeInsets.all(4), child: Text("Recent Orders - Need Action", style: TextStyle(fontWeight: FontWeight.bold)))),
+          StreamBuilder<QuerySnapshot>(
+            stream: db.collection('orders').orderBy('createdAt', descending: true).limit(20).snapshots(),
+            builder: (c,s){
+              if(!s.hasData) return CircularProgressIndicator();
+              return ListView.builder(shrinkWrap: true, physics: NeverScrollableScrollPhysics(), itemCount: s.data!.docs.length, itemBuilder: (c,i){
+                var doc = s.data!.docs[i];
+                var data = doc.data() as Map<String, dynamic>;
+                return Card(child: ListTile(
+                  title: Text("${data['orderNumber']??''} - ${data['userName']??''}", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  subtitle: Text("${(data['items'] as List?)?.map((e)=> e['name']).join(', ')??''} | T&C: ${data['termsAccepted']==true? 'YES':'NO'} | ${data['status']??''}", style: TextStyle(fontSize: 11)),
+                  trailing: Text("\$${data['totalAmount']?? data['deliveryFee']??0}", style: TextStyle(fontWeight: FontWeight.bold)),
+                  onTap: ()=> Navigator.push(context, MaterialPageRoute(builder: (_)=> AdminOrders())),
+                ));
+              });
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+}
