@@ -14,7 +14,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final cellCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
   final passCtrl = TextEditingController();
-  String role = 'client';
   bool loading = false;
   String? cellError;
   String? idError;
@@ -34,26 +33,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<bool> checkCellUsed(String cell) async {
-    final q = await FirebaseFirestore.instance.collection('users').where('phone', isEqualTo: cell.trim()).limit(1).get();
-    if(q.docs.isNotEmpty){
-      setState(()=> cellError = "Cell number already used by another account!");
-      return true;
+    try {
+      final q = await FirebaseFirestore.instance.collection('users').where('phone', isEqualTo: cell.trim()).limit(1).get();
+      if(q.docs.isNotEmpty){
+        setState(()=> cellError = "Cell number already used by another account!");
+        return true;
+      }
+    } catch (e) {
+      debugPrint("checkCellUsed error: $e");
     }
     return false;
   }
 
   Future<bool> checkIdUsed(String idNum) async {
-    final q = await FirebaseFirestore.instance.collection('users').where('idNumber', isEqualTo: idNum.trim()).limit(1).get();
-    if(q.docs.isNotEmpty){
-      setState(()=> idError = "ID number already used!");
-      return true;
+    try {
+      final q = await FirebaseFirestore.instance.collection('users').where('idNumber', isEqualTo: idNum.trim()).limit(1).get();
+      if(q.docs.isNotEmpty){
+        setState(()=> idError = "ID number already used!");
+        return true;
+      }
+    } catch (e) {
+      debugPrint("checkIdUsed error: $e");
     }
     return false;
   }
 
   Future<void> register() async {
     if(nameCtrl.text.isEmpty || idCtrl.text.isEmpty || cellCtrl.text.isEmpty || emailCtrl.text.isEmpty || passCtrl.text.isEmpty){
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fill all fields")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fill all fields")));
       return;
     }
     if(!validateCell(cellCtrl.text)) return;
@@ -71,51 +78,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'phone': cellCtrl.text.trim(),
         'cellNumber': cellCtrl.text.trim(),
         'email': emailCtrl.text.trim(),
-        'role': role,
+        'role': 'client',
         'totalOrders': 0,
         'createdAt': FieldValue.serverTimestamp(),
       });
       if(mounted){
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Account created!")));
-        if(role=='admin'){
-          Navigator.pushNamedAndRemoveUntil(context, '/admin_dashboard', (r)=> false);
-        } else {
-          Navigator.pushNamedAndRemoveUntil(context, '/client_home', (r)=> false);
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Account created!")));
+        Navigator.pushNamedAndRemoveUntil(context, '/client_home', (r)=> false);
       }
     } on FirebaseAuthException catch(e){
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message??"Error")));
     } catch(e){
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error $e")));
     }
-    setState(()=> loading=false);
+    if(mounted) setState(()=> loading=false);
+  }
+
+  @override
+  void dispose(){
+    nameCtrl.dispose(); idCtrl.dispose(); cellCtrl.dispose(); emailCtrl.dispose(); passCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context){
     return Scaffold(
-      appBar: AppBar(title: Text("Create Account"), backgroundColor: Color(0xFF0F172A), foregroundColor: Colors.white),
+      appBar: AppBar(title: const Text("Create Account"), backgroundColor: const Color(0xFF0F172A), foregroundColor: Colors.white),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text("ID Number and Cell Required", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          SizedBox(height: 12),
-          TextField(controller: nameCtrl, decoration: InputDecoration(labelText: "Full Name *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
-          SizedBox(height: 12),
-          TextField(controller: idCtrl, decoration: InputDecoration(labelText: "ID Number *", hintText: "e.g. 63-1234567-A-12", border: OutlineInputBorder(), prefixIcon: Icon(Icons.badge), errorText: idError), onChanged: (v)=> setState(()=> idError=null)),
-          SizedBox(height: 12),
-          TextField(controller: cellCtrl, decoration: InputDecoration(labelText: "Cell Number *", hintText: "0771234567 (NOT +263)", border: OutlineInputBorder(), prefixIcon: Icon(Icons.phone), errorText: cellError), keyboardType: TextInputType.phone, onChanged: (v){ if(cellError!=null) validateCell(v); }),
-          if(cellError==null) Padding(padding: EdgeInsets.only(top: 4, left: 12), child: Text("Must start with 0, 10 digits, no +263", style: TextStyle(fontSize: 10, color: Colors.grey))),
-          SizedBox(height: 12),
-          TextField(controller: emailCtrl, decoration: InputDecoration(labelText: "Email *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
-          SizedBox(height: 12),
-          TextField(controller: passCtrl, decoration: InputDecoration(labelText: "Password *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true),
-          SizedBox(height: 12),
-          DropdownButtonFormField<String>(value: role, decoration: InputDecoration(labelText: "Role", border: OutlineInputBorder()), items: [DropdownMenuItem(value: 'client', child: Text("Client")), DropdownMenuItem(value: 'admin', child: Text("Admin"))], onChanged: (v)=> setState(()=> role=v!)),
-          SizedBox(height: 20),
-          SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF0F172A)), onPressed: loading? null : register, child: loading? CircularProgressIndicator(color: Colors.white) : Text("Register - Check Cell Uniqueness", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
-          SizedBox(height: 12),
-          Center(child: TextButton(onPressed: ()=> Navigator.pushNamed(context, '/login'), child: Text("Already have account? Login"))),
+          const Text("ID Number and Cell Required", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 12),
+          TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Full Name *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
+          const SizedBox(height: 12),
+          TextField(controller: idCtrl, decoration: InputDecoration(labelText: "ID Number *", hintText: "e.g. 63-1234567-A-12", border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.badge), errorText: idError), onChanged: (v)=> setState(()=> idError=null)),
+          const SizedBox(height: 12),
+          TextField(controller: cellCtrl, decoration: InputDecoration(labelText: "Cell Number *", hintText: "0771234567 (NOT +263)", border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.phone), errorText: cellError), keyboardType: TextInputType.phone, onChanged: (v){ if(cellError!=null) validateCell(v); }),
+          if(cellError==null) const Padding(padding: EdgeInsets.only(top: 4, left: 12), child: Text("Must start with 0, 10 digits, no +263", style: TextStyle(fontSize: 10, color: Colors.grey))),
+          const SizedBox(height: 12),
+          TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: "Email *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+          const SizedBox(height: 12),
+          TextField(controller: passCtrl, decoration: const InputDecoration(labelText: "Password *", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true),
+          const SizedBox(height: 20),
+          SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A)), onPressed: loading? null : register, child: loading? const CircularProgressIndicator(color: Colors.white) : const Text("Register - Check Cell Uniqueness", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+          const SizedBox(height: 12),
+          Center(child: TextButton(onPressed: ()=> Navigator.pushNamed(context, '/login'), child: const Text("Already have account? Login"))),
         ]),
       ),
     );

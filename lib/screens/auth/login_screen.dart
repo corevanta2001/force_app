@@ -15,7 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> login() async {
     if(emailCtrl.text.isEmpty || passCtrl.text.isEmpty){
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Fill email and password")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fill email and password")));
       return;
     }
     setState(()=> loading=true);
@@ -32,37 +32,45 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } on FirebaseAuthException catch(e){
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message??"Login failed")));
+    } catch(e){
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error $e")));
     }
-    setState(()=> loading=false);
+    if(mounted) setState(()=> loading=false);
+  }
+
+  @override
+  void dispose(){
+    emailCtrl.dispose(); passCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context){
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF0F172A), Color(0xFF1E293B)])),
+        decoration: const BoxDecoration(gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF0F172A), Color(0xFF1E293B)])),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox(height: 20),
-              IconButton(icon: Icon(Icons.arrow_back, color: Colors.white), onPressed: ()=> Navigator.pushNamedAndRemoveUntil(context, '/home', (r)=> false)),
-              SizedBox(height: 10),
-              Text("Welcome Back", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
-              Text("Login to Force Delivery", style: TextStyle(color: Colors.white70)),
-              SizedBox(height: 30),
+              const SizedBox(height: 20),
+              IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: ()=> Navigator.pushNamedAndRemoveUntil(context, '/home', (r)=> false)),
+              const SizedBox(height: 10),
+              const Text("Welcome Back", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
+              const Text("Login to Force Delivery", style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 30),
               Container(
-                padding: EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
                 child: Column(children: [
-                  TextField(controller: emailCtrl, decoration: InputDecoration(labelText: "Email", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
-                  SizedBox(height: 14),
-                  TextField(controller: passCtrl, decoration: InputDecoration(labelText: "Password", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true),
-                  SizedBox(height: 20),
-                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF0F172A)), onPressed: loading? null : login, child: loading? CircularProgressIndicator(color: Colors.white) : Text("Login", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
-                  SizedBox(height: 12),
-                  TextButton(onPressed: ()=> Navigator.pushNamed(context, '/register'), child: Text("No account? Register with ID & Cell")),
-                  TextButton(onPressed: ()=> Navigator.pushNamedAndRemoveUntil(context, '/home', (r)=> false), child: Text("Back to Home Screen")),
+                  TextField(controller: emailCtrl, decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder(), prefixIcon: Icon(Icons.email))),
+                  const SizedBox(height: 14),
+                  TextField(controller: passCtrl, decoration: const InputDecoration(labelText: "Password", border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)), obscureText: true),
+                  const SizedBox(height: 20),
+                  SizedBox(width: double.infinity, height: 50, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0F172A)), onPressed: loading? null : login, child: loading? const CircularProgressIndicator(color: Colors.white) : const Text("Login", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)))),
+                  const SizedBox(height: 12),
+                  TextButton(onPressed: ()=> Navigator.pushNamed(context, '/register'), child: const Text("No account? Register with ID & Cell")),
+                  TextButton(onPressed: ()=> Navigator.pushNamedAndRemoveUntil(context, '/home', (r)=> false), child: const Text("Back to Home Screen")),
                 ]),
               ),
             ]),
