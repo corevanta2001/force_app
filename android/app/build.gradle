@@ -2,6 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
 }
 
 def localProperties = new Properties()
@@ -12,10 +13,20 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
 android {
     namespace "com.example.force_app"
-    compileSdk 34
-    ndkVersion flutter.ndkVersion
+    compileSdkVersion 34
+    ndkVersion "27.0.12077973"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -23,6 +34,10 @@ android {
     }
     kotlinOptions {
         jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
     }
 
     defaultConfig {
