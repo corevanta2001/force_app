@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "697104593083",
+    "project_id": "forceapp-2573e",
+    "storage_bucket": "forceapp-2573e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:697104593083:android:06e996e87ae1d63883b99e",
+        "android_client_info": {
+          "package_name": "com.example.force_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB26Oclj50Oy4spVQfHcbzAk16Bjri25Hc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
