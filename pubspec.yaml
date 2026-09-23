@@ -8,20 +8,20 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.2
-  firebase_core: ^2.32.0
-  firebase_auth: ^4.16.0
-  cloud_firestore: ^4.17.0
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
   supabase_flutter: ^2.5.0
-  google_fonts: ^6.1.0
+  google_fonts: ^8.2.1
   pdf: ^3.10.7
   app_links: 6.2.1
 
   printing: ^5.11.1
   geolocator: 13.0.4
   image_picker: ^1.0.4
-  fl_chart: ^0.68.0
-  intl: ^0.19.0
-  permission_handler: 11.3.1
+  fl_chart: ^1.2.0
+  intl: ^0.20.3
+  permission_handler: ^13.0.2
 flutter:
   uses-material-design: true
 
