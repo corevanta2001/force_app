@@ -8,32 +8,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Clean Gradle Cache (fix corrupted D8)
+      - name: Wipe Gradle cache
         run: rm -rf ~/.gradle/caches ~/.gradle/wrapper
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
+          flutter-version: '3.24.5'
           channel: 'stable'
-          cache: true
-
+          cache: false
       - run: flutter pub get
-
-      # Downgrade geolocator_android that forces location 21.2.0
-      - name: Force compatible geolocator
-        run: |
-          flutter pub add geolocator_android:4.5.0
-          flutter pub get
-
       - run: flutter clean
-      - run: flutter build apk --release --split-per-abi --no-tree-shake-icons --no-shrink -v
-
+      - run: flutter build apk --release --split-per-abi --no-tree-shake-icons --no-shrink
       - uses: actions/upload-artifact@v4
         with:
           name: force-app-apk
