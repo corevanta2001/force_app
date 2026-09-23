@@ -1,0 +1,43 @@
+name: forceapp description: FORCE DELIVERY 
+publish_to: 'none' version: 1.0.0+1 environment:
+# 3. Add a FORCED block at bottom of pubspec.yaml 
+# sdk: '>=3.2.0 <4.0.0'
+nano pubspec.yamldependencies: flutter:
+# Paste at bottom: sdk: flutter 
+# dependency_overrides: cupertino_icons: ^1.0.2
+#   app_links: ^7.2.1 firebase_core: ^2.32.0
+  firebase_auth: ^4.20.0 cloud_firestore: ^4.17.0 
+  supabase_flutter: ^2.5.0 google_fonts: ^6.1.0 
+  pdf: ^3.10.7 printing: ^5.11.1 geolocator: 
+  10.1.1 image_picker: ^1.0.4 fl_chart: ^0.68.0 
+  intl: ^0.19.0 permission_handler: 11.3.1
+# 4. Re-getflutter:
+flutter pub get uses-material-design: true cat 
+pubspec.lock | grep -A2 "app_links"
+# Should now show 7.2.1 or NOTHING if you removed 
+# it 5. Update workflow to clean cache on runner
+cat > .github/workflows/build.yml << 'YAML' name: 
+Build APK on:
+  push: branches: [ main, master ] 
+  workflow_dispatch:
+jobs: build: runs-on: ubuntu-latest steps: - 
+      uses: actions/checkout@v4 - uses: 
+      actions/setup-java@v4
+        with: distribution: 'zulu' java-version: 
+          '17'
+      - uses: subosito/flutter-action@v2 with: 
+          flutter-version: '3.32.0' channel: 
+          'stable' cache: false
+      - name: Clean run: | flutter pub cache 
+          clean --force flutter clean rm -f 
+          pubspec.lock flutter pub get
+      - name: Build APK run: flutter build apk 
+        --release --verbose
+      - name: Upload APK uses: 
+        actions/upload-artifact@v4 with:
+          name: app-release-apk path: 
+          build/app/outputs/flutter-apk/app-release.apk
+YAML git add . git commit -m "fix: nuke app_links 
+6.4.1 and force 7.2.1 + no cache"
+git push --force
+

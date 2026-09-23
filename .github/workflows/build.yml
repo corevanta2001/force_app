@@ -1,40 +1,28 @@
 name: Build APK
-
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.5'
+          flutter-version: '3.32.0'
           channel: 'stable'
-          cache: true
-
-      - name: Clean and get deps
+          cache: false
+      - name: Clean
         run: |
           flutter clean
           flutter pub get
-
-      - name: Upgrade old plugins (fix for AGP 8)
-        run: |
-          flutter pub add app_links:^6.4.2 || true
-          flutter pub upgrade --major-versions || flutter pub upgrade
-
       - name: Build APK
-        run: flutter build apk --release --verbose
-
+        run: flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
