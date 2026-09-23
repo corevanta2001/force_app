@@ -14,15 +14,14 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.0'
+          flutter-version: '3.24.5'
           channel: 'stable'
           cache: false
-      - name: Clean
+      - name: Build
         run: |
           flutter clean
           flutter pub get
-      - name: Build APK
-        run: flutter build apk --release
+          flutter build apk --release
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
