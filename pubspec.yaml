@@ -22,3 +22,5 @@ dependencies:
   permission_handler: 11.3.1
 flutter:
   uses-material-design: true
+dependency_overrides:
+  app_links: ^6.4.2
