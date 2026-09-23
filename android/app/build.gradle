@@ -15,17 +15,19 @@ def flutterVersionName = localProperties.getProperty('flutter.versionName') ?: '
 
 android {
     namespace "com.example.force_app"
-    compileSdkVersion 34
+    compileSdk 34
     ndkVersion "27.0.12077973"
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
     kotlinOptions { jvmTarget = '1.8' }
+
     defaultConfig {
         applicationId "com.example.force_app"
-        minSdkVersion 23
-        targetSdkVersion 34
+        minSdk 23
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
         multiDexEnabled true
@@ -37,8 +39,25 @@ android {
             shrinkResources false
         }
     }
+    // Disable problematic dexing transform
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/LICENSE.txt', 'META-INF/NOTICE']
+        }
+    }
 }
+
+configurations.all {
+    resolutionStrategy {
+        force 'com.google.android.gms:play-services-location:21.0.1'
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22'
+    }
+}
+
 dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
+    implementation 'com.google.android.gms:play-services-location:21.0.1'
 }
+
 flutter { source '../..' }
