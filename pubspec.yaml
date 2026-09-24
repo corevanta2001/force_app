@@ -24,7 +24,7 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.4
 
-  app_links: ^6.3.2
+  app_links: 6.2.1
 
   geolocator: ^13.0.1
 
