@@ -27,9 +27,9 @@ if (flutterVersionName == null) {
 android {
     namespace "com.example.force_app"
 
-    compileSdk 35
+    compileSdk 36
 
-    ndkVersion "27.0.12077973"
+    ndkVersion "28.2.13676358"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -53,7 +53,7 @@ android {
         multiDexEnabled true
     }
 
-    buildTypes {
+  buildTypes {
         release {
             signingConfig signingConfigs.debug
             minifyEnabled false
@@ -61,6 +61,7 @@ android {
         }
     }
 }
+
 
 dependencies {
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.5"
