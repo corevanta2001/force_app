@@ -1,28 +1,50 @@
 name: forceapp
 description: FORCE DELIVERY
 publish_to: 'none'
+
 version: 1.0.0+1
+
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: '>=3.5.0 <4.0.0'
+
 dependencies:
   flutter:
     sdk: flutter
-  cupertino_icons: ^1.0.2
-  firebase_core: ^2.32.0
-  firebase_auth: ^4.16.0
-  cloud_firestore: ^4.17.0
-  supabase_flutter: ^2.5.0
-  google_fonts: ^6.1.0
-  pdf: ^3.10.7
-  app_links: 6.2.1
 
-  printing: ^5.11.1
-  geolocator: 13.0.4
-  image_picker: ^1.0.4
-  fl_chart: ^0.68.0
-  intl: ^0.19.0
-  permission_handler: 11.3.1
+  cupertino_icons: ^1.0.8
+
+  # Firebase
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
+
+  # Supabase
+  supabase_flutter: ^2.17.2
+
+  # UI / fonts
+  google_fonts: ^8.2.1
+
+  # PDF / printing
+  pdf: ^3.13.1
+  printing: ^5.15.1
+
+  # Deep links
+  app_links: ^7.2.1
+
+  # Location
+  geolocator: ^14.0.3
+
+  # Images
+  image_picker: ^1.2.3
+
+  # Charts
+  fl_chart: ^1.2.0
+
+  # Internationalization
+  intl: ^0.20.3
+
+  # Permissions
+  permission_handler: ^13.0.2
+
 flutter:
   uses-material-design: true
-
-
