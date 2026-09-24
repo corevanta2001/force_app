@@ -23,15 +23,21 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
 
-      - name: Install Android SDK 36 and NDK 28.2
+      - name: Configure Android SDK
+        shell: bash
         run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
           yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-36" \
-                     "build-tools;36.0.0" \
-                     "ndk;28.2.13676358"
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" \
+            "cmake;3.22.1"
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -40,23 +46,55 @@ jobs:
           cache: true
 
       - name: Flutter version
-        run: flutter --version
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Clean project
+        run: |
+          flutter clean
+          rm -rf build
+          rm -rf .dart_tool
+          rm -rf android/.gradle
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Clean Flutter build
-        run: flutter clean
+      - name: Verify Android configuration
+        run: |
+          echo "=== Android Gradle files ==="
+          ls -la android
+          echo "=== Flutter devices ==="
+          flutter devices
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release --verbose
 
-      - name: Find APK
-        run: find build -type f -name "*.apk" -print
+      - name: Find generated APK
+        if: always()
+        run: |
+          echo "=== Searching for APK files ==="
+          find "$GITHUB_WORKSPACE" \
+            -type f \
+            -name "*.apk" \
+            -not -path "*/.gradle/*" \
+            -print
+
+      - name: Verify APK exists
+        run: |
+          if ! find "$GITHUB_WORKSPACE/build" -type f -name "*.apk" | grep -q .; then
+            echo "ERROR: No APK was generated."
+            echo "=== Build directory ==="
+            find "$GITHUB_WORKSPACE/build" -maxdepth 6 -type f -print 2>/dev/null || true
+            exit 1
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: force-app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/apk/release/*.apk
           if-no-files-found: error
