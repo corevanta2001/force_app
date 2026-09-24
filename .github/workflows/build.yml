@@ -23,6 +23,18 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;35.0.0"
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -33,17 +45,8 @@ jobs:
         run: |
           flutter --version
           flutter doctor -v
-          flutter analyze --suggestions || true
 
-      - name: Install Android SDK components
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;35.0.0"
-
-      - name: Verify required Android files
+      - name: Verify Android files
         run: |
           test -f android/settings.gradle
           test -f android/build.gradle
