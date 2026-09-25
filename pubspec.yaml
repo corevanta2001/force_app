@@ -38,3 +38,5 @@ dependencies:
 
 flutter:
   uses-material-design: true
+dependency_overrides:
+  app_links: 6.2.1
