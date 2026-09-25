@@ -1,66 +1,68 @@
 name: Build Android APK
 
 on:
-push:
-branches: ["main"]
-workflow_dispatch:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
-contents: read
+  contents: read
 
 jobs:
-build:
-runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-latest
 
-steps:  
-  - name: Checkout  
-    uses: actions/checkout@v4  
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  - name: Set up Java  
-    uses: actions/setup-java@v5  
-    with:  
-      distribution: temurin  
-      java-version: "17"  
-      cache: gradle  
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
 
-  - name: Set up Flutter  
-    uses: subosito/flutter-action@v2  
-    with:  
-      channel: stable  
-      cache: true  
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
 
-  - name: Flutter diagnostics  
-    run: |  
-      flutter --version  
-      flutter doctor -v  
-      flutter analyze --suggestions || true  
+      - name: Install Android SDK components
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;35.0.0"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-  - name: Install Android SDK components  
-    run: |  
-      yes | sdkmanager --licenses >/dev/null || true  
-      sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"  
+      - name: Flutter diagnostics
+        run: |
+          flutter --version
+          flutter doctor -v
+      - name: Verify Android files
+        run: |
+          test -f android/settings.gradle
+          test -f android/build.gradle
+          test -f android/app/build.gradle
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          echo "Android project files are present."
+      - name: Get dependencies
+        run: flutter pub get
 
-  - name: Verify required Android files  
-    run: |  
-      test -f android/settings.gradle  
-      test -f android/build.gradle  
-      test -f android/app/build.gradle  
-      test -f android/gradle/wrapper/gradle-wrapper.properties  
-      echo "Android project files are present."  
+      - name: Build release APK
+        run: flutter build apk --release
 
-  - name: Get dependencies  
-    run: flutter pub get  
-
-  - name: Build release APK  
-    run: flutter build apk --release  
-
-  - name: List APKs  
-    if: always()  
-    run: find build -type f -name "*.apk" -print || true  
-
-  - name: Upload APK  
-    uses: actions/upload-artifact@v4  
-    with:  
-      name: force-app-release  
-      path: build/app/outputs/flutter-apk/*.apk  
-      if-no-files-found: error
+      - name: List APKs
+        if: always()
+        run: |
+          find build -type f -name "*.apk" -print || true
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: force-app-release
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
