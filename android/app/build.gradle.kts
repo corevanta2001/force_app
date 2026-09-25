@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.force_app"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
