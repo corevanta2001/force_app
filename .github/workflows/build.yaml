@@ -1,0 +1,251 @@
+name: Build Android APK - Full Diagnostics
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --------------------------------------------------
+      # 1. Checkout
+      # --------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------
+      # 2. Java
+      # --------------------------------------------------
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      # --------------------------------------------------
+      # 3. Android SDK
+      # --------------------------------------------------
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK components
+        run: |
+          set -o pipefail
+
+          yes | sdkmanager --licenses 2>&1 | tee android-sdk-licenses.log || true
+
+          sdkmanager \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;35.0.0" \
+            2>&1 | tee android-sdk-install.log
+
+      # --------------------------------------------------
+      # 4. Flutter
+      # --------------------------------------------------
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # --------------------------------------------------
+      # 5. Environment diagnostics
+      # --------------------------------------------------
+      - name: Flutter and Android diagnostics
+        run: |
+          set -o pipefail
+
+          echo "========================================"
+          echo "FLUTTER VERSION"
+          echo "========================================"
+          flutter --version 2>&1 | tee flutter-version.log
+
+          echo "========================================"
+          echo "FLUTTER DOCTOR"
+          echo "========================================"
+          flutter doctor -v 2>&1 | tee flutter-doctor.log
+
+          echo "========================================"
+          echo "JAVA VERSION"
+          echo "========================================"
+          java -version 2>&1 | tee java-version.log
+
+          echo "========================================"
+          echo "GRADLE VERSION"
+          echo "========================================"
+          cd android
+          ./gradlew --version 2>&1 | tee ../gradle-version.log
+          cd ..
+
+          echo "========================================"
+          echo "ANDROID SDK"
+          echo "========================================"
+          sdkmanager --list_installed 2>&1 | tee android-sdk-installed.log
+
+      # --------------------------------------------------
+      # 6. Show project structure
+      # --------------------------------------------------
+      - name: Inspect Android project
+        run: |
+          set -o pipefail
+
+          echo "========================================"
+          echo "ANDROID SOURCE FILES"
+          echo "========================================"
+
+          find android -type f \
+            -not -path "*/.gradle/*" \
+            -not -path "*/build/*" \
+            -print | sort | tee android-files.log
+
+          echo "========================================"
+          echo "DART SOURCE FILES"
+          echo "========================================"
+
+          find lib -type f -print | sort | tee dart-files.log
+
+      # --------------------------------------------------
+      # 7. Verify important files
+      # --------------------------------------------------
+      - name: Verify required files
+        run: |
+          set -e
+
+          test -f pubspec.yaml
+          test -f android/settings.gradle
+          test -f android/build.gradle
+          test -f android/app/build.gradle
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          test -f android/app/src/main/AndroidManifest.xml
+
+          echo "All required Android/Flutter files are present."
+
+      # --------------------------------------------------
+      # 8. Flutter dependencies
+      # --------------------------------------------------
+      - name: Flutter pub get
+        run: |
+          set -o pipefail
+          flutter pub get 2>&1 | tee flutter-pub-get.log
+
+      # --------------------------------------------------
+      # 9. Analyze Dart code
+      # --------------------------------------------------
+      - name: Flutter analyze
+        run: |
+          set -o pipefail
+          flutter analyze 2>&1 | tee flutter-analyze.log
+
+      # --------------------------------------------------
+      # 10. Clean
+      # --------------------------------------------------
+      - name: Flutter clean
+        run: |
+          set -o pipefail
+          flutter clean 2>&1 | tee flutter-clean.log
+
+          flutter pub get 2>&1 | tee flutter-pub-get-after-clean.log
+
+      # --------------------------------------------------
+      # 11. Build APK with maximum logging
+      # --------------------------------------------------
+      - name: Build release APK - verbose
+        run: |
+          set -o pipefail
+
+          echo "========================================"
+          echo "STARTING FLUTTER RELEASE BUILD"
+          echo "========================================"
+
+          flutter build apk \
+            --release \
+            --verbose \
+            2>&1 | tee flutter-build.log
+
+      # --------------------------------------------------
+      # 12. Additional Gradle diagnostic build
+      # --------------------------------------------------
+      - name: Run Gradle diagnostics
+        if: always()
+        working-directory: android
+        run: |
+          set -o pipefail
+
+          echo "========================================"
+          echo "GRADLE TASKS"
+          echo "========================================"
+
+          ./gradlew tasks \
+            --stacktrace \
+            --info \
+            2>&1 | tee ../gradle-tasks.log
+
+      # --------------------------------------------------
+      # 13. Search all logs for important errors
+      # --------------------------------------------------
+      - name: Extract errors and exceptions
+        if: always()
+        run: |
+          echo "========================================"
+          echo "IMPORTANT ERRORS / EXCEPTIONS"
+          echo "========================================"
+
+          find . -type f \
+            \( -name "*.log" -o -name "*.txt" \) \
+            -not -path "./.git/*" \
+            -not -path "./build/*" \
+            -not -path "./android/.gradle/*" \
+            -print0 |
+          xargs -0 grep -iE \
+            "FATAL|EXCEPTION|Caused by:|ERROR|FAILURE|failed|crash|outofmemory|out of memory|duplicate|manifest merger|Execution failed" \
+            2>/dev/null |
+          tail -500 \
+          | tee important-errors.log || true
+
+      # --------------------------------------------------
+      # 14. Show APK information
+      # --------------------------------------------------
+      - name: Inspect generated APK
+        if: always()
+        run: |
+          echo "========================================"
+          echo "GENERATED APK FILES"
+          echo "========================================"
+
+          find build -type f -name "*.apk" -print -exec ls -lh {} \; \
+            | tee apk-files.log || true
+
+      # --------------------------------------------------
+      # 15. Upload APK
+      # --------------------------------------------------
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: force-app-release
+          path: build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+
+      # --------------------------------------------------
+      # 16. Upload ALL diagnostic logs
+      # --------------------------------------------------
+      - name: Upload complete diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: force-build-diagnostics
+          path: |
+            *.log
+            android/**/*.log
+            flutter-build.log
+            important-errors.log
+          if-no-files-found: warn
+          retention-days: 14
