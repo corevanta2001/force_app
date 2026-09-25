@@ -21,33 +21,25 @@ import 'screens/admin/admin_clients.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    debugPrint('Firebase initialized successfully.');
-  } catch (e, stackTrace) {
-    debugPrint('Firebase initialization failed: $e');
-    debugPrintStack(stackTrace: stackTrace);
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    debugPrint('Firebase OK');
+  } catch (e, s) {
+    debugPrint('Firebase FAIL: $e\n$s');
   }
 
-  // Supabase
   try {
     await Supabase.initialize(
       url: 'https://qrqabogrnwtyhedhbiml.supabase.co',
       anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFycWFib2dybnd0eWhlZGhiaW1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4NzkyNzEsImV4cCI6MjEwNTQ1NTI3MX0.WFryJq4wAJxhbHw2V_UI1Kjb8cR3nm0vo9ZUm_s-BZU',
     );
-
-    debugPrint('Supabase initialized successfully.');
-  } catch (e, stackTrace) {
-    debugPrint('Supabase initialization failed: $e');
-    debugPrintStack(stackTrace: stackTrace);
+    debugPrint('Supabase OK');
+  } catch (e, s) {
+    debugPrint('Supabase FAIL: $e\n$s');
   }
 
-  FlutterError.onError = (FlutterErrorDetails details) {
+  FlutterError.onError = (details) {
     FlutterError.dumpErrorToConsole(details);
-    debugPrint('Flutter error: ${details.exception}');
   };
 
   runApp(const ForceApp());
@@ -55,18 +47,15 @@ Future<void> main() async {
 
 class ForceApp extends StatelessWidget {
   const ForceApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'FORCE',
       theme: ForceTheme.light,
-
       initialRoute: '/home',
-
       routes: {
-        '/home': (context) => HomeScreen(),
+        '/home': (context) => const HomeScreen(),
         '/login': (context) => LoginScreen(),
         '/register': (context) => RegisterScreen(),
         '/client_home': (context) => ClientHome(),
@@ -79,26 +68,14 @@ class ForceApp extends StatelessWidget {
         '/admin_income': (context) => AdminIncome(),
         '/admin_clients': (context) => AdminClients(),
       },
-
       onGenerateRoute: (settings) {
         if (settings.name == '/client_tracking') {
-          final arguments = settings.arguments;
-
-          if (arguments is String) {
-            return MaterialPageRoute(
-              builder: (_) => ClientTracking(orderId: arguments),
-            );
+          final args = settings.arguments;
+          if (args is String) {
+            return MaterialPageRoute(builder: (_) => ClientTracking(orderId: args));
           }
-
-          return MaterialPageRoute(
-            builder: (_) => const Scaffold(
-              body: Center(
-                child: Text('Invalid order ID.'),
-              ),
-            ),
-          );
+          return MaterialPageRoute(builder: (_) => const Scaffold(body: Center(child: Text('Invalid order ID.'))));
         }
-
         return null;
       },
     );
