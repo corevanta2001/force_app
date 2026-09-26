@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AdminOrders extends StatelessWidget {
+class AdminOrders extends StatefulWidget {
   const AdminOrders({super.key});
+  @override
+  State<AdminOrders> createState() => _AdminOrdersState();
+}
+
+class _AdminOrdersState extends State<AdminOrders> {
+  final searchCtrl = TextEditingController();
+  String searchQuery = '';
 
   String formatDateTime(dynamic ts) {
     if (ts == null) return '';
@@ -24,26 +31,30 @@ class AdminOrders extends StatelessWidget {
     }
   }
 
-  Future<void> confirmDelete(BuildContext context, DocumentReference ref, String orderNumber) async {
+  Future<void> confirmClear(BuildContext context, DocumentReference ref, String orderNumber) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: Text("Delete Order?"),
-        content: Text("Are you sure you want to permanently delete order ${orderNumber}? This cannot be undone."),
+        title: Text("Clear Order?"),
+        content: Text("Clear order $orderNumber from admin view? It will NOT be permanently deleted."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: Text("Cancel")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
             onPressed: () => Navigator.pop(c, true),
-            child: Text("Delete", style: TextStyle(color: Colors.white)),
+            child: Text("Clear", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
     if (ok == true) {
-      await ref.delete();
+      await ref.update({
+        'adminCleared': true,
+        'adminClearedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order deleted")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order cleared from admin view")));
       }
     }
   }
@@ -207,71 +218,112 @@ class AdminOrders extends StatelessWidget {
     });
   }
 
+  bool matchesSearch(Map<String, dynamic> d) {
+    if (searchQuery.isEmpty) return true;
+    final q = searchQuery.toLowerCase();
+    if ((d['userName']?? '').toString().toLowerCase().contains(q)) return true;
+    if ((d['orderNumber']?? '').toString().toLowerCase().contains(q)) return true;
+    if ((d['driverName']?? '').toString().toLowerCase().contains(q)) return true;
+    if ((d['vanType']?? '').toString().toLowerCase().contains(q)) return true;
+    if ((d['vanPlate']?? '').toString().toLowerCase().contains(q)) return true;
+    List items = d['items']?? [];
+    for (var it in items) {
+      if ((it['name']?? '').toString().toLowerCase().contains(q)) return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text("All Orders - Company Control"), backgroundColor: Color(0xFF0F172A), foregroundColor: Colors.white),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('orders').orderBy('createdAt', descending: true).snapshots(),
-        builder: (c,s){
-          if(!s.hasData) return Center(child: CircularProgressIndicator());
-          if(s.data!.docs.isEmpty) return Center(child: Text("No orders"));
-          return ListView.builder(
-            itemCount: s.data!.docs.length,
-            itemBuilder: (c,i){
-              var doc = s.data!.docs[i];
-              var d = doc.data() as Map<String, dynamic>;
-              var st = d['status']??'pending';
-              Color stColor = st=='delivered'? Colors.green : st=='declined'? Colors.red : st=='in_transit'? Colors.blue : st.contains('deposit')? Colors.purple : Colors.orange;
-              List items = d['items']??[];
-              return Card(
-                margin: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Expanded(child: Text(d['orderNumber']??'', style: TextStyle(fontWeight: FontWeight.bold))),
-                      Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text(st.replaceAll('_',' ').toUpperCase(), style: TextStyle(fontSize: 10, color: stColor, fontWeight: FontWeight.bold))),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: Colors.red, size: 20),
-                        tooltip: "Delete order",
-                        onPressed: () => confirmDelete(context, doc.reference, d['orderNumber']?? ''),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(8),
+            child: TextField(
+              controller: searchCtrl,
+              decoration: InputDecoration(
+                labelText: "Search by client name / driver / items / van type",
+                prefixIcon: Icon(Icons.search),
+                suffixIcon: searchQuery.isNotEmpty
+                   ? IconButton(icon: Icon(Icons.clear), onPressed: () => setState(() { searchCtrl.clear(); searchQuery = ''; }))
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onChanged: (v) => setState(() => searchQuery = v.trim()),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('orders').orderBy('createdAt', descending: true).snapshots(),
+              builder: (c,s){
+                if(!s.hasData) return Center(child: CircularProgressIndicator());
+                var docs = s.data!.docs.where((doc) {
+                  var d = doc.data() as Map<String, dynamic>;
+                  if (d['adminCleared'] == true) return false;
+                  return matchesSearch(d);
+                }).toList();
+                if(docs.isEmpty) return Center(child: Text("No orders"));
+                return ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (c,i){
+                    var doc = docs[i];
+                    var d = doc.data() as Map<String, dynamic>;
+                    var st = d['status']??'pending';
+                    Color stColor = st=='delivered'? Colors.green : st=='declined'? Colors.red : st=='in_transit'? Colors.blue : st.contains('deposit')? Colors.purple : Colors.orange;
+                    List items = d['items']??[];
+                    return Card(
+                      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Expanded(child: Text(d['orderNumber']??'', style: TextStyle(fontWeight: FontWeight.bold))),
+                            Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text(st.replaceAll('_',' ').toUpperCase(), style: TextStyle(fontSize: 10, color: stColor, fontWeight: FontWeight.bold))),
+                            IconButton(
+                              icon: Icon(Icons.clear_all, color: Colors.orange, size: 20),
+                              tooltip: "Clear from admin view",
+                              onPressed: () => confirmClear(context, doc.reference, d['orderNumber']?? ''),
+                            ),
+                          ]),
+                          SizedBox(height: 4),
+                          Text("Created: ${formatDateTime(d['createdAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          if(d['acceptedAt']!= null) Text("Accepted: ${formatDateTime(d['acceptedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          if(d['inTransitAt']!= null) Text("In Transit: ${formatDateTime(d['inTransitAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          if(d['deliveredAt']!= null) Text("Delivered: ${formatDateTime(d['deliveredAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          if(d['declinedAt']!= null) Text("Declined: ${formatDateTime(d['declinedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          if(d['updatedAt']!= null) Text("Updated: ${formatDateTime(d['updatedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                          SizedBox(height: 4),
+                          Text("${d['userName']??''} | ${d['userPhone']??''}", style: TextStyle(fontSize: 11)),
+                          Text("Store: ${d['storeName']??'Any'} | Delivery: ${d['deliveryLocation']??''} -> ${d['dropoffAddress']??''}", style: TextStyle(fontSize: 11)),
+                          SizedBox(height: 4),
+                          Text("Items:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                       ...items.map((it)=> Text("• ${it['name']} x ${it['qty']}", style: TextStyle(fontSize: 11))).toList(),
+                          SizedBox(height: 4),
+                          Container(padding: EdgeInsets.all(6), decoration: BoxDecoration(color: d['termsAccepted']==true? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(4)), child: Text("T&C: ${d['termsAccepted']==true? 'ACCEPTED (irreversible) ✓' : 'NOT ACCEPTED'} | ${d['termsAcceptedAt']!=null? 'at '+formatDateTime(d['termsAcceptedAt']) : ''}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                          if(d['depositAmount']!=null && d['depositAmount']>0) Padding(padding: EdgeInsets.only(top: 4), child: Text("Deposit: \$${d['depositAmount']} | Total: \$${d['totalAmount']} | Remaining: \$${d['remainingAmount']} | Proof: ${d['proofOfPayment']??'none'}", style: TextStyle(fontSize: 11, color: Colors.purple))),
+                          if(d['driverName']!=null && d['driverName']!='') Text("Driver: ${d['driverName']} | Van: ${d['vanPlate']} ${d['vanType']} | ETA: ${d['eta']}", style: TextStyle(fontSize: 11)),
+                          if(d['declineReason']!=null && d['declineReason']!='') Text("Decline Reason: ${d['declineReason']}", style: TextStyle(fontSize: 11, color: Colors.red)),
+                          SizedBox(height: 8),
+                          Wrap(spacing: 6, runSpacing: 4, children: [
+                            if(st=='pending')...[
+                              ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showAcceptDialog(context, doc.reference), child: Text("Accept + Set Deposit/Total", style: TextStyle(fontSize: 10, color: Colors.white))),
+                              ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showDeclineDialog(context, doc.reference), child: Text("Decline", style: TextStyle(fontSize: 10, color: Colors.white))),
+                            ],
+                            if(st=='deposit_paid') ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showInTransitDialog(context, doc.reference), child: Text("Set Driver/Van/ETA -> In Transit", style: TextStyle(fontSize: 10, color: Colors.white))),
+                            if(st=='in_transit') ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showDeliveredDialog(context, doc.reference, d), child: Text("Mark Delivered + Expense", style: TextStyle(fontSize: 10, color: Colors.white))),
+                            if(st=='accepted_awaiting_deposit') Chip(label: Text("Waiting for client deposit proof", style: TextStyle(fontSize: 9))),
+                          ]),
+                        ]),
                       ),
-                    ]),
-                    SizedBox(height: 4),
-                    Text("Created: ${formatDateTime(d['createdAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    if(d['acceptedAt']!= null) Text("Accepted: ${formatDateTime(d['acceptedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    if(d['inTransitAt']!= null) Text("In Transit: ${formatDateTime(d['inTransitAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    if(d['deliveredAt']!= null) Text("Delivered: ${formatDateTime(d['deliveredAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    if(d['declinedAt']!= null) Text("Declined: ${formatDateTime(d['declinedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    if(d['updatedAt']!= null) Text("Updated: ${formatDateTime(d['updatedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
-                    SizedBox(height: 4),
-                    Text("${d['userName']??''} | ${d['userPhone']??''}", style: TextStyle(fontSize: 11)),
-                    Text("Store: ${d['storeName']??'Any'} | Delivery: ${d['deliveryLocation']??''} -> ${d['dropoffAddress']??''}", style: TextStyle(fontSize: 11)),
-                    SizedBox(height: 4),
-                    Text("Items:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                  ...items.map((it)=> Text("• ${it['name']} x ${it['qty']}", style: TextStyle(fontSize: 11))).toList(),
-                    SizedBox(height: 4),
-                    Container(padding: EdgeInsets.all(6), decoration: BoxDecoration(color: d['termsAccepted']==true? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(4)), child: Text("T&C: ${d['termsAccepted']==true? 'ACCEPTED (irreversible) ✓' : 'NOT ACCEPTED'} | ${d['termsAcceptedAt']!=null? 'at '+formatDateTime(d['termsAcceptedAt']) : ''}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                    if(d['depositAmount']!=null && d['depositAmount']>0) Padding(padding: EdgeInsets.only(top: 4), child: Text("Deposit: \$${d['depositAmount']} | Total: \$${d['totalAmount']} | Remaining: \$${d['remainingAmount']} | Proof: ${d['proofOfPayment']??'none'}", style: TextStyle(fontSize: 11, color: Colors.purple))),
-                    if(d['driverName']!=null && d['driverName']!='') Text("Driver: ${d['driverName']} | Van: ${d['vanPlate']} ${d['vanType']} | ETA: ${d['eta']}", style: TextStyle(fontSize: 11)),
-                    if(d['declineReason']!=null && d['declineReason']!='') Text("Decline Reason: ${d['declineReason']}", style: TextStyle(fontSize: 11, color: Colors.red)),
-                    SizedBox(height: 8),
-                    Wrap(spacing: 6, runSpacing: 4, children: [
-                      if(st=='pending')...[
-                        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showAcceptDialog(context, doc.reference), child: Text("Accept + Set Deposit/Total", style: TextStyle(fontSize: 10, color: Colors.white))),
-                        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showDeclineDialog(context, doc.reference), child: Text("Decline", style: TextStyle(fontSize: 10, color: Colors.white))),
-                      ],
-                      if(st=='deposit_paid') ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showInTransitDialog(context, doc.reference), child: Text("Set Driver/Van/ETA -> In Transit", style: TextStyle(fontSize: 10, color: Colors.white))),
-                      if(st=='in_transit') ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size(0,30)), onPressed: ()=> showDeliveredDialog(context, doc.reference, d), child: Text("Mark Delivered + Expense", style: TextStyle(fontSize: 10, color: Colors.white))),
-                      if(st=='accepted_awaiting_deposit') Chip(label: Text("Waiting for client deposit proof", style: TextStyle(fontSize: 9))),
-                    ]),
-                  ]),
-                ),
-              );
-            },
-          );
-        },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -10,7 +10,24 @@ class ClientTracking extends StatefulWidget {
 
 class _ClientTrackingState extends State<ClientTracking> {
   final proofController = TextEditingController();
+  final searchController = TextEditingController();
+  String searchQuery = '';
   bool loading = false;
+  bool isCleared = false;
+
+  String formatDateTime(dynamic ts) {
+    if (ts == null) return '';
+    try {
+      DateTime dt;
+      if (ts is Timestamp) dt = ts.toDate();
+      else if (ts is DateTime) dt = ts;
+      else return ts.toString();
+      String two(int n) => n.toString().padLeft(2, '0');
+      String ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      int h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(h)}:${two(dt.minute)} $ampm';
+    } catch (_) { return ''; }
+  }
 
   Future<void> submitProof(double deposit) async {
     if (proofController.text.trim().isEmpty) {
@@ -29,6 +46,27 @@ class _ClientTrackingState extends State<ClientTracking> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Proof sent to admin")));
   }
 
+  Future<void> clearOrderView() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text("Clear Order?"),
+        content: Text("This will clear this order from your view. It will NOT delete it from the system."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text("Cancel")),
+          ElevatedButton(onPressed: () => Navigator.pop(c, true), child: Text("Clear")),
+        ],
+      ),
+    );
+    if (ok == true) {
+      setState(() => isCleared = true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order cleared from view")));
+        Navigator.pop(context);
+      }
+    }
+  }
+
   Widget stepItem(String title, String subtitle, bool done, bool active) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Column(children: [
@@ -44,10 +82,33 @@ class _ClientTrackingState extends State<ClientTracking> {
     ]);
   }
 
+  bool matchesSearch(Map<String, dynamic> d, List items) {
+    if (searchQuery.isEmpty) return true;
+    final q = searchQuery.toLowerCase();
+    if ((d['orderNumber'] ?? '').toString().toLowerCase().contains(q)) return true;
+    if ((d['driverName'] ?? '').toString().toLowerCase().contains(q)) return true;
+    for (var it in items) {
+      if ((it['name'] ?? '').toString().toLowerCase().contains(q)) return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (isCleared) return Scaffold(body: Center(child: Text("Order cleared")));
     return Scaffold(
-      appBar: AppBar(title: Text("Track Order"), backgroundColor: Color(0xFF0F172A), foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text("Track Order"),
+        backgroundColor: Color(0xFF0F172A),
+        foregroundColor: Colors.white,
+        actions: [
+          TextButton.icon(
+            onPressed: clearOrderView,
+            icon: Icon(Icons.clear_all, color: Colors.white, size: 18),
+            label: Text("Clear", style: TextStyle(color: Colors.white, fontSize: 12)),
+          ),
+        ],
+      ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance.collection('orders').doc(widget.orderId).snapshots(),
         builder: (c, s) {
@@ -59,9 +120,33 @@ class _ClientTrackingState extends State<ClientTracking> {
           double total = (d['totalAmount'] ?? 0).toDouble();
           double remaining = (d['remainingAmount'] ?? (total - deposit)).toDouble();
           List items = d['items'] ?? [];
+
+          List filteredItems = items;
+          if (searchQuery.isNotEmpty) {
+            final q = searchQuery.toLowerCase();
+            filteredItems = items.where((it) => (it['name'] ?? '').toString().toLowerCase().contains(q)).toList();
+          }
+
+          bool searchNoMatch = searchQuery.isNotEmpty && !matchesSearch(d, items);
+
           return SingleChildScrollView(
             padding: EdgeInsets.all(16),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextField(
+                controller: searchController,
+                decoration: InputDecoration(
+                  labelText: "Search by order number / driver / item",
+                  prefixIcon: Icon(Icons.search),
+                  suffixIcon: searchQuery.isNotEmpty
+                      ? IconButton(icon: Icon(Icons.clear), onPressed: () { setState(() { searchController.clear(); searchQuery = ''; }); })
+                      : null,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onChanged: (v) => setState(() => searchQuery = v.trim()),
+              ),
+              SizedBox(height: 12),
+              if (searchNoMatch)
+                Card(color: Colors.orange.shade50, child: Padding(padding: EdgeInsets.all(12), child: Text("No match for '$searchQuery' in order number / driver / items", style: TextStyle(fontSize: 12)))),
               Card(
                 child: Padding(
                   padding: EdgeInsets.all(16),
@@ -70,12 +155,18 @@ class _ClientTrackingState extends State<ClientTracking> {
                       Text(d['orderNumber'] ?? '', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       Chip(label: Text(status.replaceAll('_', ' ').toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold)), backgroundColor: status == 'declined' ? Colors.red.shade100 : status == 'delivered' ? Colors.green.shade100 : Colors.orange.shade100),
                     ]),
+                    Text("Created: ${formatDateTime(d['createdAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if (d['acceptedAt'] != null) Text("Accepted: ${formatDateTime(d['acceptedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if (d['inTransitAt'] != null) Text("In Transit: ${formatDateTime(d['inTransitAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if (d['deliveredAt'] != null) Text("Delivered: ${formatDateTime(d['deliveredAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if (d['proofSubmittedAt'] != null) Text("Proof sent: ${formatDateTime(d['proofSubmittedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
                     Divider(),
                     Text("Items:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    ...items.map((it) => Padding(
+                    ...filteredItems.map((it) => Padding(
                           padding: EdgeInsets.symmetric(vertical: 2),
                           child: Text("• ${it['name']} x ${it['qty']}"),
                         )),
+                    if (filteredItems.isEmpty) Text("No items match search", style: TextStyle(fontSize: 11, color: Colors.grey)),
                     SizedBox(height: 8),
                     Text("Store: ${d['storeName'] ?? 'Any'}", style: TextStyle(fontSize: 12)),
                     Text("Delivery Location: ${d['deliveryLocation'] ?? ''}"),
@@ -87,7 +178,7 @@ class _ClientTrackingState extends State<ClientTracking> {
                       decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text("T&C: ${d['termsAccepted'] == true ? 'ACCEPTED (irreversible) ✓' : 'Not accepted'}", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: d['termsAccepted'] == true ? Colors.green : Colors.red)),
-                        if (d['termsAcceptedAt'] != null) Text("Accepted at: ${d['termsAcceptedAt'].toString()}", style: TextStyle(fontSize: 9)),
+                        if (d['termsAcceptedAt'] != null) Text("Accepted at: ${formatDateTime(d['termsAcceptedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
                       ]),
                     ),
                     if (status == 'declined')
@@ -95,7 +186,10 @@ class _ClientTrackingState extends State<ClientTracking> {
                         margin: EdgeInsets.only(top: 8),
                         padding: EdgeInsets.all(8),
                         decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
-                        child: Text("DECLINED: ${d['declineReason'] ?? 'No reason'}", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text("DECLINED: ${d['declineReason'] ?? 'No reason'}", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                          if (d['declinedAt'] != null) Text("Declined at: ${formatDateTime(d['declinedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                        ]),
                       ),
                     if (total > 0) ...[
                       Divider(),
@@ -111,7 +205,6 @@ class _ClientTrackingState extends State<ClientTracking> {
                       Text("Van: ${d['vanPlate']} (${d['vanType']})"),
                       Text("ETA: ${d['eta']}"),
                     ],
-                    if ((d['expenses'] ?? 0) > 0) Text("Expenses: \$${d['expenses']}"),
                   ]),
                 ),
               ),
