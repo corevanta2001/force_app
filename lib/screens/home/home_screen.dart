@@ -90,10 +90,10 @@ class HomeScreen extends StatelessWidget {
                 const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(Icons.phone, size: 14, color: Colors.white70),
                   SizedBox(width: 6),
-                  Text("Support: +263 77 123 4567", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text("Support: +263 71 850 2707", style: TextStyle(color: Colors.white70, fontSize: 12)),
                 ]),
                 const SizedBox(height: 12),
-                const Text("v1.0.0 • Made in Zimbabwe", style: TextStyle(color: Colors.white38, fontSize: 10)),
+                const Text("Secured @FORCE • Made @corevanta", style: TextStyle(color: Colors.white38, fontSize: 10)),
               ],
             ),
           ),
