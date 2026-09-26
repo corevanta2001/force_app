@@ -4,6 +4,50 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AdminOrders extends StatelessWidget {
   const AdminOrders({super.key});
 
+  String formatDateTime(dynamic ts) {
+    if (ts == null) return '';
+    try {
+      DateTime dt;
+      if (ts is Timestamp) {
+        dt = ts.toDate();
+      } else if (ts is DateTime) {
+        dt = ts;
+      } else {
+        return ts.toString();
+      }
+      String two(int n) => n.toString().padLeft(2, '0');
+      String ampm = dt.hour >= 12? 'PM' : 'AM';
+      int h = dt.hour % 12 == 0? 12 : dt.hour % 12;
+      return '${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(h)}:${two(dt.minute)} $ampm';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> confirmDelete(BuildContext context, DocumentReference ref, String orderNumber) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text("Delete Order?"),
+        content: Text("Are you sure you want to permanently delete order ${orderNumber}? This cannot be undone."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: Text("Cancel")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(c, true),
+            child: Text("Delete", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await ref.delete();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Order deleted")));
+      }
+    }
+  }
+
   Future<void> showAcceptDialog(BuildContext context, DocumentReference ref) async {
     final depositCtrl = TextEditingController();
     final totalCtrl = TextEditingController();
@@ -186,17 +230,29 @@ class AdminOrders extends StatelessWidget {
                   padding: EdgeInsets.all(10),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text(d['orderNumber']??'', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Expanded(child: Text(d['orderNumber']??'', style: TextStyle(fontWeight: FontWeight.bold))),
                       Container(padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text(st.replaceAll('_',' ').toUpperCase(), style: TextStyle(fontSize: 10, color: stColor, fontWeight: FontWeight.bold))),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red, size: 20),
+                        tooltip: "Delete order",
+                        onPressed: () => confirmDelete(context, doc.reference, d['orderNumber']?? ''),
+                      ),
                     ]),
+                    SizedBox(height: 4),
+                    Text("Created: ${formatDateTime(d['createdAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if(d['acceptedAt']!= null) Text("Accepted: ${formatDateTime(d['acceptedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if(d['inTransitAt']!= null) Text("In Transit: ${formatDateTime(d['inTransitAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if(d['deliveredAt']!= null) Text("Delivered: ${formatDateTime(d['deliveredAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if(d['declinedAt']!= null) Text("Declined: ${formatDateTime(d['declinedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
+                    if(d['updatedAt']!= null) Text("Updated: ${formatDateTime(d['updatedAt'])}", style: TextStyle(fontSize: 10, color: Colors.grey)),
                     SizedBox(height: 4),
                     Text("${d['userName']??''} | ${d['userPhone']??''}", style: TextStyle(fontSize: 11)),
                     Text("Store: ${d['storeName']??'Any'} | Delivery: ${d['deliveryLocation']??''} -> ${d['dropoffAddress']??''}", style: TextStyle(fontSize: 11)),
                     SizedBox(height: 4),
                     Text("Items:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                   ...items.map((it)=> Text("• ${it['name']} x ${it['qty']}", style: TextStyle(fontSize: 11))).toList(),
+                  ...items.map((it)=> Text("• ${it['name']} x ${it['qty']}", style: TextStyle(fontSize: 11))).toList(),
                     SizedBox(height: 4),
-                    Container(padding: EdgeInsets.all(6), decoration: BoxDecoration(color: d['termsAccepted']==true? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(4)), child: Text("T&C: ${d['termsAccepted']==true? 'ACCEPTED (irreversible) ✓' : 'NOT ACCEPTED'} | ${d['termsAcceptedAt']!=null? 'at '+d['termsAcceptedAt'].toString() : ''}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
+                    Container(padding: EdgeInsets.all(6), decoration: BoxDecoration(color: d['termsAccepted']==true? Colors.green.shade50 : Colors.red.shade50, borderRadius: BorderRadius.circular(4)), child: Text("T&C: ${d['termsAccepted']==true? 'ACCEPTED (irreversible) ✓' : 'NOT ACCEPTED'} | ${d['termsAcceptedAt']!=null? 'at '+formatDateTime(d['termsAcceptedAt']) : ''}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
                     if(d['depositAmount']!=null && d['depositAmount']>0) Padding(padding: EdgeInsets.only(top: 4), child: Text("Deposit: \$${d['depositAmount']} | Total: \$${d['totalAmount']} | Remaining: \$${d['remainingAmount']} | Proof: ${d['proofOfPayment']??'none'}", style: TextStyle(fontSize: 11, color: Colors.purple))),
                     if(d['driverName']!=null && d['driverName']!='') Text("Driver: ${d['driverName']} | Van: ${d['vanPlate']} ${d['vanType']} | ETA: ${d['eta']}", style: TextStyle(fontSize: 11)),
                     if(d['declineReason']!=null && d['declineReason']!='') Text("Decline Reason: ${d['declineReason']}", style: TextStyle(fontSize: 11, color: Colors.red)),
