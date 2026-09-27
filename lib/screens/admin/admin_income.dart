@@ -69,11 +69,14 @@ class AdminIncome extends StatelessWidget {
               itemCount: s.data!.docs.length,
               itemBuilder: (c,i){
                 var d = s.data!.docs[i].data() as Map<String, dynamic>;
+                List items = d['items']?? [];
                 return Card(margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), child: ListTile(
                   title: Text(d['orderNumber']??'', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text("Client: ${d['userName']??''} | Store: ${d['storeName']??''}", style: TextStyle(fontSize: 11)),
                     Text("Driver: ${d['driverName']??''} Van: ${d['vanPlate']??''}", style: TextStyle(fontSize: 11)),
+                    Text("Deposit: \$${d['depositAmount']??0} | Total: \$${d['totalAmount']?? d['deliveryFee']??0}", style: TextStyle(fontSize: 11, color: Colors.purple)),
+                    Text("Items: ${items.map((e)=> "${e['name']} x${e['qty']}").join(', ')}", style: TextStyle(fontSize: 10)),
                     if((d['expenseReceipts']??[]).isNotEmpty) Text("Receipts: ${(d['expenseReceipts'] as List).join(', ')}", style: TextStyle(fontSize: 10)),
                   ]),
                   trailing: Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -198,7 +201,7 @@ class _DailyIncomeDetailsScreenState extends State<DailyIncomeDetailsScreen> {
                       ]),
                     ),
                     SizedBox(height: 12),
-                   ...keys.map((k) {
+                  ...keys.map((k) {
                       DateTime dt = grouped[k]!.first['_dt'];
                       double di = incomeByDay[k]!;
                       double de = expByDay[k]!;
@@ -213,13 +216,35 @@ class _DailyIncomeDetailsScreenState extends State<DailyIncomeDetailsScreen> {
                           subtitle: Text("${grouped[k]!.length} transaction(s) • Income \$${di.toStringAsFixed(2)} • Exp \$${de.toStringAsFixed(2)}", style: TextStyle(fontSize: 11)),
                           trailing: Text("Net \$${(di-de).toStringAsFixed(2)}", style: TextStyle(fontWeight: FontWeight.bold, color: (di-de)>=0? Colors.green: Colors.red)),
                           children: grouped[k]!.map((d) {
-                            return ListTile(
-                              dense: true,
-                              title: Text("${d['orderNumber']??''} - ${d['userName']??''}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                              subtitle: Text("Driver: ${d['driverName']??''} | Van: ${d['vanPlate']??''}", style: TextStyle(fontSize: 11)),
-                              trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                                Text("+\$${d['totalAmount']?? d['deliveryFee']??0}", style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                                Text("-\$${d['expenses']??0}", style: TextStyle(color: Colors.red, fontSize: 11)),
+                            List items = d['items']?? [];
+                            return Container(
+                              margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                                  Expanded(child: Text("${d['orderNumber']??''} - ${d['userName']??''}", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700))),
+                                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                    Text("+\$${d['totalAmount']?? d['deliveryFee']??0}", style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    Text("-\$${d['expenses']??0} exp", style: TextStyle(color: Colors.red, fontSize: 11)),
+                                  ]),
+                                ]),
+                                SizedBox(height: 6),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6)),
+                                  child: Text("Deposit Paid: \$${d['depositAmount']??0} | Proof: ${d['proofOfPayment']??'N/A'}", style: TextStyle(fontSize: 11, color: Colors.purple.shade800)),
+                                ),
+                                SizedBox(height: 6),
+                                Text("Items bought:", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                               ...items.map((it) => Padding(
+                                  padding: EdgeInsets.only(left: 8, top: 2),
+                                  child: Text("• ${it['name']} x ${it['qty']} ${it['price']!=null? "- \$${it['price']}": ""}", style: TextStyle(fontSize: 11)),
+                                )).toList(),
+                                SizedBox(height: 4),
+                                Text("Driver: ${d['driverName']??''} | Van: ${d['vanPlate']??''} (${d['vanType']??''})", style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                if ((d['expenseReceipts']??[]).isNotEmpty)
+                                  Text("Receipts: ${(d['expenseReceipts'] as List).join(', ')}", style: TextStyle(fontSize: 10, color: Colors.grey)),
                               ]),
                             );
                           }).toList(),
